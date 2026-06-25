@@ -1,0 +1,45 @@
+{
+  "_README": "CTF-comp MCP servers. Merge the ones you want into ~/.claude.json under 'mcpServers' (NOT settings.json — Claude Code ignores mcpServers there), then restart Claude Code. Replace __ARENA__ with the absolute path to this arena/ folder, and __TOOLS__ with wherever you installed the downloaded servers. 'ours' = bundled in arena/mcp/ours (run setup-mcp.sh). Everything else: see mcp/README.md for the download/source. NO secrets or API keys are in this file. Bug-bounty/intel servers (hackerone, cve) are intentionally excluded — CTF only.",
+
+  "mcpServers": {
+    "magic": {
+      "command": "python3",
+      "args": ["__ARENA__/mcp/ours/magic-mcp/server.py"]
+    },
+    "netsession": {
+      "command": "python3",
+      "args": ["__ARENA__/mcp/ours/netsession/server.py"]
+    },
+
+    "kali_mcp": {
+      "command": "__TOOLS__/CTF-Solver/.venv/bin/python",
+      "args": ["__TOOLS__/CTF-Solver/src/my_server/mcp_server.py", "--server", "http://localhost:5000/"]
+    },
+    "radare2": { "command": "r2mcp", "args": [] },
+    "pwndbg":  { "command": "pwndbg-mcp", "args": ["--transport", "stdio"] },
+    "ghidra": {
+      "command": "uv",
+      "args": ["run", "--with", "mcp", "--with", "requests", "python",
+               "__TOOLS__/ghidramcp/bridge_mcp_ghidra.py", "--ghidra-server", "http://127.0.0.1:8090/"]
+    },
+    "pcap-analysis": {
+      "command": "__TOOLS__/venv/bin/python",
+      "args": ["-m", "pcap_analysis_mcp", "--server"]
+    },
+    "mem-forensics": {
+      "command": "__TOOLS__/venv/bin/python",
+      "args": ["__TOOLS__/Windows-Memory-Forensics-MCP/src/memory_forensics_mcp.py"]
+    },
+    "frida-hacking": {
+      "command": "__TOOLS__/venv/bin/python",
+      "args": ["-m", "frida_game_hacking_mcp"]
+    },
+    "hexstrike": { "command": "hexstrike_mcp", "args": ["--server", "http://127.0.0.1:8888"] },
+    "jshook": {
+      "command": "npx",
+      "args": ["-y", "@jshookmcp/jshook@latest"],
+      "env": { "JSHOOK_BASE_PROFILE": "search" }
+    },
+    "burp": { "type": "sse", "url": "http://127.0.0.1:9876/" }
+  }
+}

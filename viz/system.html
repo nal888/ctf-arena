@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>How My CTF Harness Works</title>
+<style>
+  :root{ --bg:#0d1526; --panel:#111b30; --edge2:#21304b; --ink:#f1f5f9; --sub:#aebed4; --line:#33415c; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); }
+  body{ background:var(--bg); display:flex; flex-direction:column; overflow:hidden; }
+  header{ text-align:center; padding:18px 16px 14px; border-bottom:1px solid var(--edge2); background:var(--panel); z-index:5; }
+  header h1{ margin:0; font-size:24px; font-weight:750; letter-spacing:-.3px; }
+  header p{ margin:6px 0 0; color:var(--sub); font-size:13.5px; }
+
+  #stage{ position:relative; flex:1; overflow:hidden; cursor:grab;
+    background-color:var(--bg);
+    background-image:radial-gradient(rgba(148,163,184,.13) 1.1px, transparent 1.1px); background-size:26px 26px; }
+  #stage.panning{ cursor:grabbing; }
+  #canvas{ position:absolute; top:0; left:0; width:1360px; height:1180px; transform-origin:0 0; }
+  svg{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+
+  .node{ position:absolute; border-radius:12px; padding:13px 16px; background:#1c2942;
+    border:1px solid var(--line); border-left:4px solid #8497b3; box-shadow:0 3px 12px rgba(0,0,0,.4);
+    transition:opacity .4s ease, transform .4s ease, box-shadow .16s; opacity:0; transform:translateY(8px);
+    cursor:grab; user-select:none; z-index:1; }
+  .node.show{ opacity:1; transform:none; }
+  .node:hover{ box-shadow:0 0 0 2px rgba(96,165,250,.6), 0 10px 26px rgba(0,0,0,.55); z-index:5; }
+  .node.dragging{ cursor:grabbing; box-shadow:0 0 0 2px #60a5fa, 0 14px 30px rgba(0,0,0,.6); z-index:6; transition:box-shadow .1s; }
+  .node .t{ font-weight:680; font-size:15.5px; letter-spacing:-.2px; color:#ffffff; }
+  .node .s{ color:var(--sub); font-size:12.5px; margin-top:4px; line-height:1.45; }
+  .blue{ border-left-color:#60a5fa; background:#16294a; }
+  .yellow{ border-left-color:#fbbf24; background:#2c2714; }
+  .green{ border-left-color:#34d399; background:#102e26; }
+  .note{ border:1.5px dashed; box-shadow:none; background:#15203a; border-left-width:1.5px; }
+  .purple{ border-color:#c084fc; } .orange{ border-color:#fb923c; }
+  .note .t{ font-weight:640; font-size:13.5px; } .note .s{ font-size:12px; }
+
+  /* arsenal frame + chips */
+  .frame{ background:rgba(96,165,250,.045); border:1.5px dashed #38567f; border-radius:16px; box-shadow:none;
+    cursor:grab; pointer-events:auto; z-index:0; padding:0; }
+  .frame .t{ position:absolute; top:-11px; left:16px; background:#0d1526; padding:0 8px; font-size:12.5px; color:#86abdd; font-weight:650; }
+  .frame .s{ display:none; }
+  .chip{ background:#19233a; }
+  .chip .t{ font-size:13.5px; } .chip .s{ font-size:11.5px; margin-top:3px; }
+  .c-sk{ border-left-color:#60a5fa; } .c-mc{ border-left-color:#34d399; } .c-kn{ border-left-color:#c084fc; }
+  .c-to{ border-left-color:#fb923c; } .c-hk{ border-left-color:#f472b6; }
+
+  .elabel{ position:absolute; transform:translate(-50%,-50%); background:#0d1526; border:1px solid var(--line);
+    border-radius:7px; padding:2px 9px; font-size:12px; font-weight:600; color:#dbe4f0; transition:opacity .4s; opacity:0; pointer-events:none; white-space:nowrap; }
+  .elabel.show{ opacity:1; }
+  path.edge{ transition:opacity .4s; opacity:0; }
+  path.edge.show{ opacity:1; }
+  #canvas.anim path.edge.show{ animation:dash 24s linear infinite; }
+  @keyframes dash{ to{ stroke-dashoffset:-1000; } }
+
+  #zoom{ position:absolute; left:16px; bottom:16px; display:flex; flex-direction:column; gap:6px; z-index:6; }
+  #zoom button{ width:38px; height:38px; border:1px solid var(--line); background:#17223a; border-radius:9px; cursor:pointer;
+    font-size:18px; line-height:1; box-shadow:0 1px 3px rgba(0,0,0,.4); color:#cbd5e1; display:flex; align-items:center; justify-content:center; }
+  #zoom button:hover{ background:#1f2c47; }
+  #zoom .zlabel{ text-align:center; font-size:11px; color:var(--sub); user-select:none; }
+
+  footer{ text-align:center; padding:12px; border-top:1px solid var(--edge2); background:var(--panel); z-index:5; }
+  .controls{ display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; }
+  .controls button{ font:inherit; padding:9px 18px; border:1px solid var(--line); background:#17223a; color:var(--ink); border-radius:9px; cursor:pointer; font-weight:550; }
+  .controls button:disabled{ opacity:.35; cursor:default; }
+  .controls button#next{ background:#2563eb; color:#fff; border-color:#2563eb; }
+  .controls button#next:disabled{ background:#334155; border-color:#334155; }
+  .controls button:not(:disabled):hover{ filter:brightness(1.13); }
+  .controls button.on{ background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+  .sep{ width:1px; height:24px; background:var(--edge2); }
+  .step{ color:var(--sub); font-size:14px; min-width:118px; font-variant-numeric:tabular-nums; }
+  .hint{ color:#6b7a92; font-size:12px; margin-top:8px; }
+  .topnav{ position:fixed; top:13px; right:18px; z-index:30; display:flex; gap:6px; }
+  .topnav a{ font-size:12.5px; color:#9fb0c8; text-decoration:none; padding:6px 13px; border:1px solid var(--line); border-radius:8px; background:#17223a; }
+  .topnav a.on{ background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+  .topnav a:hover{ filter:brightness(1.18); }
+</style>
+</head>
+<body>
+<div class="topnav"><a href="http://localhost:8012/">Live</a><a href="http://localhost:8012/cards">Cards</a><a href="http://localhost:8012/system" class="on">System</a></div>
+<header>
+  <h1>How My CTF Harness Works</h1>
+  <p>Open Claude in the folder &rarr; the whole arsenal auto-loads &rarr; Sonnet solves, escalate when stuck, verify the flag</p>
+</header>
+
+<div id="stage">
+  <div id="canvas">
+    <svg id="wires"><defs>
+      <marker id="arw" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#7e8ea8"/>
+      </marker>
+    </defs></svg>
+  </div>
+  <div id="zoom">
+    <button id="zin" title="Zoom in">+</button>
+    <button id="zout" title="Zoom out">&minus;</button>
+    <button id="zfit" title="Fit to view" style="font-size:14px;">⤢</button>
+    <div class="zlabel" id="zpct">100%</div>
+  </div>
+</div>
+
+<footer>
+  <div class="controls">
+    <button id="prev">Previous</button>
+    <span class="step" id="stepLabel"></span>
+    <button id="next">Next</button>
+    <button id="reset">Reset</button>
+    <span class="sep"></span>
+    <button id="anim" title="Toggle flowing line animation">Flow lines: off</button>
+  </div>
+  <div class="hint">→ reveal steps &nbsp;·&nbsp; scroll = zoom &nbsp;·&nbsp; drag empty space = pan &nbsp;·&nbsp; drag a box to move it</div>
+</footer>
+
+<script>
+const W=252, H=66;
+const nodes = [
+  /* main spine (left) */
+  {id:"chal",  x:200, y:80,  t:"Challenge in",            s:"files + description (ctfd.py pull, or drop in a folder)", c:"blue", step:1},
+  {id:"load",  x:200, y:228, t:"Open Claude in the folder", s:"the arsenal on the right auto-loads", c:"blue", step:2},
+  {id:"recog", x:200, y:392, t:"Recognize the category",  s:"web · pwn · crypto · rev · forensics · osint", c:"blue", step:3},
+  {id:"solve", x:200, y:540, t:"Sonnet solves",           s:"match pattern → run vault/template → drive MCP tools", c:"", step:4},
+  {id:"stuck", x:200, y:702, t:"Stuck?",                  s:"no progress · wrong vector · time", c:"yellow", step:5},
+  {id:"verify",x:200, y:854, t:"Verify the flag",         s:"CTFd submit / --expected · reject decoy & too-easy", c:"", step:6},
+  {id:"done",  x:200, y:1002,t:"Solved!",                 s:"flag accepted", c:"green", step:7},
+
+  /* escalation ladder (lower-right) */
+  {id:"critic",x:600, y:702, t:"Critic loop",             s:"Opus reads the failed run + vault → steers → Sonnet retries", c:"", step:8},
+  {id:"opus",  x:940, y:702, t:"Solo Opus",               s:"hand the whole challenge to Opus", c:"", step:9},
+  {id:"human", x:940, y:854, t:"Human",                   s:"lattice/novel crypto · obfuscated RE", c:"", step:10},
+  {id:"cap",   x:600, y:988, t:"Capture the win", s:"solved → append the pattern to the vault → next time it's recognition, not re-derivation", c:"note orange", step:11, w:360, h:88},
+
+  /* ===== auto-loaded arsenal (top-right) ===== */
+  {id:"frame", x:578, y:64,  t:"AUTO-LOADED ARSENAL  ·  opens with the folder", s:"", c:"frame", step:2, w:720, h:512, group:["sk","mc","kn","to","hk"]},
+  {id:"sk", x:606, y:120, t:"Skills", s:"ctf-method · ctf-vault · ctf-crypto / web / pwn / rev / forensics / osint", c:"chip c-sk", step:2, w:300, h:78},
+  {id:"mc", x:606, y:236, t:"MCPs · 13", s:"burp · pwndbg · radare2 · ghidra · netsession · kali · magic · frida · mem-forensics · pcap · hackerone · hexstrike · basic_memory", c:"chip c-mc", step:2, w:300, h:120},
+  {id:"kn", x:606, y:404, t:"Knowledge", s:"vault/&lt;cat&gt;.md · templates/ · research/pwn + crypto", c:"chip c-kn", step:2, w:300, h:74},
+  {id:"to", x:946, y:120, t:"Tools", s:"ctfd.py (pull/submit) · race.py (bench) · track.py (measure) · cc.py (dashboard) · fable_math.py", c:"chip c-to", step:2, w:322, h:120},
+  {id:"hk", x:946, y:268, t:"Hooks · 3", s:"loop-guard (anti-grind) · output-guard (anti-bloat) · burp-guard (no curl AI-tell)", c:"chip c-hk", step:2, w:322, h:96},
+];
+const edges = [
+  ["chal","load","b","t","",2],["load","recog","b","t","",3],["recog","solve","b","t","",4],
+  ["solve","stuck","b","t","",5],["stuck","verify","b","t","No · got flag",6],["verify","done","b","t","verified",7],
+  ["stuck","critic","r","l","Yes · stuck",8],["critic","opus","r","l","still stuck",9],["opus","human","b","t","still stuck",10],
+  ["human","verify","l","r","cracked → verify",10],
+  ["load","frame","r","l","loads",2],
+  ["done","cap","r","l","",11],
+];
+
+const N={}; nodes.forEach(n=>{ n.w=n.w||W; n.h=n.h||H; N[n.id]=n; });
+let maxStep=0; nodes.forEach(n=>maxStep=Math.max(maxStep,n.step)); edges.forEach(e=>maxStep=Math.max(maxStep,e[5]));
+let cur=1;
+
+const stage=document.getElementById("stage"), canvas=document.getElementById("canvas"), svg=document.getElementById("wires");
+function anchor(n,s){ return s==="t"?{x:n.x+n.w/2,y:n.y}: s==="b"?{x:n.x+n.w/2,y:n.y+n.h}: s==="l"?{x:n.x,y:n.y+n.h/2}:{x:n.x+n.w,y:n.y+n.h/2}; }
+function normal(s){ return s==="t"?[0,-1]:s==="b"?[0,1]:s==="l"?[-1,0]:[1,0]; }
+const OFF=56;
+const adj={}; nodes.forEach(n=>adj[n.id]=new Set());
+edges.forEach((e,i)=>{ adj[e[0]].add(i); adj[e[1]].add(i); });
+
+nodes.forEach(n=>{
+  const d=document.createElement("div");
+  d.className="node "+n.c; d.id="n_"+n.id;
+  d.style.left=n.x+"px"; d.style.top=n.y+"px"; d.style.width=n.w+"px"; d.style.minHeight=n.h+"px";
+  d.innerHTML=`<div class="t">${n.t}</div><div class="s">${n.s}</div>`;
+  d.addEventListener("mousedown",e=>startNodeDrag(n,d,e));
+  canvas.appendChild(d);
+});
+edges.forEach((e,i)=>{
+  const p=document.createElementNS("http://www.w3.org/2000/svg","path");
+  p.setAttribute("fill","none"); p.setAttribute("stroke","#7e8ea8"); p.setAttribute("stroke-width","2");
+  p.setAttribute("stroke-dasharray","7 5"); p.setAttribute("marker-end","url(#arw)");
+  p.classList.add("edge"); p.id="e_"+i; p.dataset.step=e[5];
+  svg.appendChild(p);
+  if(e[4]){ const el=document.createElement("div"); el.className="elabel"; el.id="el_"+i; el.dataset.step=e[5]; el.textContent=e[4]; canvas.appendChild(el); }
+  redrawEdge(i);
+});
+function redrawEdge(i){
+  const [f,t,fs,ts]=edges[i];
+  const a=anchor(N[f],fs), b=anchor(N[t],ts), nf=normal(fs), nt=normal(ts);
+  const c1={x:a.x+nf[0]*OFF,y:a.y+nf[1]*OFF}, c2={x:b.x+nt[0]*OFF,y:b.y+nt[1]*OFF};
+  document.getElementById("e_"+i).setAttribute("d",`M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`);
+  const el=document.getElementById("el_"+i); if(el){ el.style.left=((a.x+b.x)/2)+"px"; el.style.top=((a.y+b.y)/2)+"px"; }
+}
+function render(){
+  nodes.forEach(n=>document.getElementById("n_"+n.id).classList.toggle("show", n.step<=cur));
+  edges.forEach((e,i)=>{ document.getElementById("e_"+i).classList.toggle("show", e[5]<=cur);
+    const el=document.getElementById("el_"+i); if(el) el.classList.toggle("show", e[5]<=cur); });
+  document.getElementById("stepLabel").textContent=`Step ${cur} of ${maxStep}`;
+  document.getElementById("prev").disabled=cur<=1; document.getElementById("next").disabled=cur>=maxStep;
+}
+document.getElementById("next").onclick=()=>{ if(cur<maxStep){cur++;render();} };
+document.getElementById("prev").onclick=()=>{ if(cur>1){cur--;render();} };
+document.getElementById("reset").onclick=()=>{ cur=1; render(); };
+document.getElementById("anim").onclick=e=>{ const on=canvas.classList.toggle("anim"); e.target.classList.toggle("on",on); e.target.textContent="Flow lines: "+(on?"on":"off"); };
+document.addEventListener("keydown",e=>{ if(e.key==="ArrowRight")document.getElementById("next").click(); if(e.key==="ArrowLeft")document.getElementById("prev").click(); });
+
+let scale=1, tx=0, ty=0; const CW=1360, CH=1180;
+function apply(){ canvas.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`; document.getElementById("zpct").textContent=Math.round(scale*100)+"%"; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function fit(){ const r=stage.getBoundingClientRect(); scale=clamp(Math.min(r.width/CW,r.height/CH)*0.95,.3,2.5); tx=(r.width-CW*scale)/2; ty=(r.height-CH*scale)/2; apply(); }
+function zoomAt(cx,cy,f){ const ns=clamp(scale*f,.3,2.5); tx=cx-(cx-tx)*(ns/scale); ty=cy-(cy-ty)*(ns/scale); scale=ns; apply(); }
+stage.addEventListener("wheel",e=>{ e.preventDefault(); const r=stage.getBoundingClientRect(); zoomAt(e.clientX-r.left,e.clientY-r.top,e.deltaY<0?1.12:1/1.12); },{passive:false});
+document.getElementById("zin").onclick=()=>{ const r=stage.getBoundingClientRect(); zoomAt(r.width/2,r.height/2,1.2); };
+document.getElementById("zout").onclick=()=>{ const r=stage.getBoundingClientRect(); zoomAt(r.width/2,r.height/2,1/1.2); };
+document.getElementById("zfit").onclick=fit;
+
+let panning=false, sx=0, sy=0, stx=0, sty=0;
+stage.addEventListener("mousedown",e=>{ if(e.target.closest(".node")) return; panning=true; stage.classList.add("panning"); sx=e.clientX; sy=e.clientY; stx=tx; sty=ty; });
+let dragItems=null, primaryEl=null, dsx=0, dsy=0;
+function startNodeDrag(n,el,e){ e.stopPropagation(); primaryEl=el; el.classList.add("dragging"); dsx=e.clientX; dsy=e.clientY;
+  const ids=[n.id].concat(n.group||[]); dragItems=ids.map(id=>({n:N[id], el:document.getElementById("n_"+id), x0:N[id].x, y0:N[id].y})); }
+window.addEventListener("mousemove",e=>{
+  if(dragItems){ const dx=(e.clientX-dsx)/scale, dy=(e.clientY-dsy)/scale, touched=new Set();
+    dragItems.forEach(it=>{ it.n.x=it.x0+dx; it.n.y=it.y0+dy; it.el.style.left=it.n.x+"px"; it.el.style.top=it.n.y+"px"; adj[it.n.id].forEach(i=>touched.add(i)); });
+    touched.forEach(i=>redrawEdge(i)); return; }
+  if(panning){ tx=stx+(e.clientX-sx); ty=sty+(e.clientY-sy); apply(); }
+});
+window.addEventListener("mouseup",()=>{ if(primaryEl) primaryEl.classList.remove("dragging"); dragItems=null; primaryEl=null; panning=false; stage.classList.remove("panning"); });
+
+render(); fit(); window.addEventListener("resize",fit);
+</script>
+</body>
+</html>

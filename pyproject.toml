@@ -1,0 +1,16 @@
+[project]
+name = "arena"
+version = "0.1.0"
+description = "Self-driving CTF solver — Claude Code-first, pluggable AIs (codex/gemini)"
+requires-python = ">=3.10"
+dependencies = []                      # stdlib only — nothing to pip-install
+
+[project.scripts]
+arena = "arena.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["arena"]

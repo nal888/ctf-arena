@@ -1,0 +1,22 @@
+# --- secrets / per-user config (NEVER commit) ---
+.env
+.ctfd.json
+*.token
+
+# --- per-run data (challenges, transcripts, flags) ---
+run/
+
+# --- environments / build / caches ---
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+*.tar.gz
+
+# --- editor / OS ---
+.DS_Store
+.idea/
+.vscode/
