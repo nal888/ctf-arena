@@ -94,11 +94,32 @@ class Client:
         (folder / ".cid").write_text(str(cid))
         desc = f"# {name}\n\ncategory: {category}\npoints: {d.get('value','?')}\n\n{d.get('description','')}"
         (folder / "desc.md").write_text(desc)
-        if d.get("connection_info"):
-            (folder / ".conn").write_text(d["connection_info"])
+        conn = d.get("connection_info") or self._resolve_instance(cid, d.get("description") or "")
+        if conn:
+            (folder / ".conn").write_text(conn)
         for fpath in d.get("files", []):
             self._download(fpath, folder)
         return folder
+
+    def _resolve_instance(self, cid, description: str) -> str:
+        """Some CTFs hand the live target via `curl https://HOST/<id> -H 'Authorization: TOKEN'` in the
+        description (no connection_info; the id/token are filled in by the browser). Resolve it here with
+        the real challenge id + token so `.conn` holds a ready target the solver can hit directly."""
+        m = re.search(r"""curl\s+https?://([^/\s"'<]+)/""", description)
+        if not m or not self.cfg.token:
+            return ""
+        host = m.group(1)
+        req = urllib.request.Request(
+            f"https://{host}/{cid}",
+            headers={"Authorization": self.cfg.token, "User-Agent": "Mozilla/5.0"},   # instance endpoint wants the raw token
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=getattr(self.cfg, "http_timeout", 25)) as r:
+                body = r.read().decode("utf-8", "ignore")
+        except Exception:
+            return ""
+        u = re.search(r"""https?://[^\s"'<)]+""", body)         # the live challenge URL in the response
+        return u.group(0) if u else ""
 
     def _download(self, fpath: str, folder: Path) -> None:
         url = self.cfg.url + fpath
