@@ -81,6 +81,7 @@ best-first · the critic **corrects** on failure · the loop **repeats** until s
 | `RECON` | `1` | forced recon pass before exploiting (`0` to skip) |
 | `MAXTRY` | `4` | attempts/challenge (1 solo + critic-steered retries) |
 | `SKIP_STUCK` | `1` | after `MAXTRY` fails, mark the challenge **needs-human** and stop re-grinding it (`0` = keep retrying) |
+| `BUS` | `1` | shared `FINDINGS.md` notes per challenge — carries findings across attempts; coordinator/you can steer via it (`0` = off) |
 | `RETRIES` | `3` | CTFd network retries on 429/5xx/timeout, backoff+jitter (`0` = off) |
 | `PER_TIMEOUT` | `800` | per-solver timeout (s) |
 | `DEADLINE` | — | comp end (`2026-07-15 10:00 UTC`) → loop stops |

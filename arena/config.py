@@ -28,6 +28,7 @@ DEFAULTS = {
     "RETRIES": "3",              # CTFd network retries on 429/5xx/timeout, backoff+jitter (0 = off)
     "HTTP_TIMEOUT": "25",        # per-request timeout (seconds)
     "SKIP_STUCK": "1",           # 1 = after MAXTRY fails, mark challenge 'needs human' + stop re-grinding it (0 = keep retrying every loop)
+    "BUS": "1",                  # 1 = shared FINDINGS.md scratchpad per challenge (notes across attempts + coordinator/operator steers), even in normal mode
     "POLL": "240",               # seconds between re-polling for new challenges
     "GAP": "20",                 # politeness gap between challenges
     "WORKDIR": "run",            # where challenges are pulled to
@@ -67,6 +68,7 @@ class Config:
     retries: int
     http_timeout: int
     skip_stuck: bool
+    bus: bool
     poll: int
     gap: int
     workdir: Path
@@ -106,6 +108,7 @@ class Config:
             retries=int(g("RETRIES")),
             http_timeout=int(g("HTTP_TIMEOUT")),
             skip_stuck=g("SKIP_STUCK") == "1",
+            bus=g("BUS") == "1",
             poll=int(g("POLL")),
             gap=int(g("GAP")),
             workdir=root / g("WORKDIR"),

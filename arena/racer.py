@@ -55,8 +55,10 @@ def build_prompt(desc: str, conn: str, bus_path: str | None, steer: str | None, 
     if conn:
         p += f"\nRemote target: {conn}"
     if bus_path:
-        p += (f"\n\nSHARED SCRATCHPAD at {bus_path}: other AIs are racing this SAME challenge — append any "
-              f"concrete finding (echo '...' >> {bus_path}) and read it (cat {bus_path}) to reuse theirs.")
+        p += (f"\n\nSHARED SCRATCHPAD at {bus_path}: a running notes file for THIS challenge. `cat` it FIRST "
+              f"to see prior findings and any steers, and append every concrete finding as you go "
+              f"(echo '...' >> {bus_path}). Other racers (if any), the coordinator, and the operator may "
+              f"read it or drop steers in — so it carries progress across attempts, not just within one.")
     return p
 
 
@@ -106,7 +108,7 @@ def run_pass(cfg: Config, chal_dir: Path, *, steer: str | None = None, escalate:
     desc = (chal_dir / "desc.md").read_text() if (chal_dir / "desc.md").exists() else ""
     conn = (chal_dir / ".conn").read_text().strip() if (chal_dir / ".conn").exists() else ""
     plan = _plan(cfg, escalate)
-    bus_path = str((chal_dir / "FINDINGS.md").resolve()) if len(plan) > 1 else None
+    bus_path = str((chal_dir / "FINDINGS.md").resolve()) if (cfg.bus or len(plan) > 1) else None
     prompt = build_prompt(desc, conn, bus_path, steer, recon)
 
     stop = threading.Event()
