@@ -28,7 +28,9 @@ def run_loop(cfg: Config) -> int:
     client = Client(cfg)
     solved = cfg.workdir / ".solved"
     solved.mkdir(parents=True, exist_ok=True)
-    print(f"arena loop — provider={cfg.provider} racers={cfg.racers} submit={cfg.submit}")
+    stuck = cfg.workdir / ".stuck"
+    stuck.mkdir(parents=True, exist_ok=True)
+    print(f"arena loop — provider={cfg.provider} racers={cfg.racers} submit={cfg.submit} skip_stuck={cfg.skip_stuck}")
 
     while True:
         if _deadline_passed(cfg):
@@ -44,12 +46,17 @@ def run_loop(cfg: Config) -> int:
             cid = cidf.read_text().strip()
             if (solved / cid).exists():
                 continue
+            if cfg.skip_stuck and (stuck / cid).exists():        # exhausted MAXTRY already -> needs a human
+                continue
             if cfg.skip_osint and "osint" in str(chal).lower():
                 continue
 
             flag = solve_challenge(cfg, chal)            # runs the escalation ladder (attempt → critic → retry)
             if not flag:
                 print(f"[{cid}] {chal.name}: no flag")
+                if cfg.skip_stuck:                       # stop re-grinding it every cycle; hand it to a human
+                    (stuck / cid).write_text(chal.name)
+                    print(f"[{cid}] {chal.name}: marked NEEDS-HUMAN (clear with: rm {stuck / cid})")
             elif cfg.submit == "manual":
                 print(f"[{cid}] {chal.name} FLAG (manual, submit yourself): {flag}")
             else:
@@ -57,6 +64,10 @@ def run_loop(cfg: Config) -> int:
                 print(f"[{cid}] {chal.name} {status}: {flag}  ({msg})")
                 if status in ("correct", "already_solved"):
                     (solved / cid).write_text(flag)
+                    (stuck / cid).unlink(missing_ok=True)
             time.sleep(cfg.gap)
 
+        needs = sorted(p.read_text() for p in stuck.glob("*"))
+        if needs:
+            print(f"[loop] NEEDS-HUMAN ({len(needs)}): {', '.join(needs)}")
         time.sleep(cfg.poll)

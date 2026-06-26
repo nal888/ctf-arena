@@ -25,6 +25,9 @@ DEFAULTS = {
     "PER_TIMEOUT": "800",        # per-solver timeout (seconds)
     "MAXTRY": "4",               # attempts per challenge before giving up (1 solo + critic-steered retries)
     "RECON": "1",                # 1 = forced recon/observe pass (enumerate + rank candidate vectors) before exploiting
+    "RETRIES": "3",              # CTFd network retries on 429/5xx/timeout, backoff+jitter (0 = off)
+    "HTTP_TIMEOUT": "25",        # per-request timeout (seconds)
+    "SKIP_STUCK": "1",           # 1 = after MAXTRY fails, mark challenge 'needs human' + stop re-grinding it (0 = keep retrying every loop)
     "POLL": "240",               # seconds between re-polling for new challenges
     "GAP": "20",                 # politeness gap between challenges
     "WORKDIR": "run",            # where challenges are pulled to
@@ -61,6 +64,9 @@ class Config:
     per_timeout: int
     maxtry: int
     recon: bool
+    retries: int
+    http_timeout: int
+    skip_stuck: bool
     poll: int
     gap: int
     workdir: Path
@@ -97,6 +103,9 @@ class Config:
             per_timeout=int(g("PER_TIMEOUT")),
             maxtry=int(g("MAXTRY")),
             recon=g("RECON") == "1",
+            retries=int(g("RETRIES")),
+            http_timeout=int(g("HTTP_TIMEOUT")),
+            skip_stuck=g("SKIP_STUCK") == "1",
             poll=int(g("POLL")),
             gap=int(g("GAP")),
             workdir=root / g("WORKDIR"),

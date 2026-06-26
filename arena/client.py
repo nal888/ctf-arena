@@ -5,7 +5,10 @@ Note: CTFd 3.8 token auth needs Content-Type: application/json on EVERY request 
 from __future__ import annotations
 
 import json
+import random
 import re
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -28,15 +31,35 @@ class Client:
             h["Cookie"] = f"session={self.cfg.cookie}"
         return h
 
+    RETRY_CODES = {408, 429, 500, 502, 503, 504}
+
     def _req(self, path: str, data: dict | None = None, raw: bool = False):
         url = path if path.startswith("http") else self.cfg.url + path
         body = json.dumps(data).encode() if data is not None else None
-        req = urllib.request.Request(
-            url, data=body, method="POST" if data is not None else "GET", headers=self._headers()
-        )
-        with urllib.request.urlopen(req, timeout=25) as r:
-            content = r.read()
-        return content if raw else json.loads(content)
+        timeout = getattr(self.cfg, "http_timeout", 25)
+        retries = getattr(self.cfg, "retries", 0)
+        last: Exception | None = None
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(
+                url, data=body, method="POST" if data is not None else "GET", headers=self._headers()
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    content = r.read()
+                return content if raw else json.loads(content)
+            except urllib.error.HTTPError as e:
+                last = e
+                if e.code not in self.RETRY_CODES or attempt >= retries:
+                    raise
+                ra = e.headers.get("Retry-After") if e.headers else None       # honor 429 Retry-After
+                wait = float(ra) if (ra and ra.isdigit()) else 0.0
+            except (urllib.error.URLError, TimeoutError, OSError) as e:
+                last = e
+                if attempt >= retries:
+                    raise
+                wait = 0.0
+            time.sleep(min(wait or (0.5 * (2 ** attempt) + random.uniform(0, 0.5)), 30))   # backoff + jitter
+        raise last                                                              # exhausted
 
     # --- reads ---
     def challenges(self) -> list[dict]:

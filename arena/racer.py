@@ -10,6 +10,7 @@ reads the transcript + vault and writes a steer → retry with the steer. Up to 
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
@@ -114,7 +115,9 @@ def run_pass(cfg: Config, chal_dir: Path, *, steer: str | None = None, escalate:
     state = {"challenge": chal_dir.name, "mode": "crazy" if len(plan) > 1 else "normal", "racers": {}}
 
     def write_state():
-        (chal_dir / ".state.json").write_text(json.dumps(state))
+        tmp = chal_dir / ".state.json.tmp"                      # atomic: tmp -> rename, crash-safe
+        tmp.write_text(json.dumps(state))
+        os.replace(tmp, chal_dir / ".state.json")
 
     def work(label, provider, angle, model):
         t0 = time.time()
