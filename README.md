@@ -65,11 +65,6 @@ submit (auto)  or  surface for you (manual)        ── live dashboard the who
 best-first · the critic **corrects** on failure · the loop **repeats** until solved or `MAXTRY`. In
 **crazy mode** several solvers race the same challenge in parallel and the first valid flag wins.
 
-### Example (the "Angry Employee" web challenge)
-1. **Recon** maps the API, flags a suspicious `vault_filter` field + an IDOR on `/users/<id>`.
-2. **Solve pass** registers, walks the IDOR, reads the target user's hidden credential → `MPTC{...}`.
-3. Flag matches `MPTC{...}` → submitted (or surfaced). Critic never needed. ~30s.
-
 ---
 
 ## Configuration (`.env`)
