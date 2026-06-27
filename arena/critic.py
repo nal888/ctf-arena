@@ -41,6 +41,8 @@ def summarize(raw: str, max_reason: int = 8, max_cmds: int = 20) -> str:
             o = json.loads(line)
         except Exception:
             continue
+        if not isinstance(o, dict):
+            continue
         t = o.get("type")
         if t == "assistant":
             for b in o.get("message", {}).get("content", []):
@@ -73,6 +75,8 @@ def _final_text(raw: str) -> str:
         try:
             o = json.loads(line)
         except Exception:
+            continue
+        if not isinstance(o, dict):
             continue
         if o.get("type") == "result" and o.get("result"):
             texts.append(str(o["result"]))
